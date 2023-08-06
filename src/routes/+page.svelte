@@ -8,7 +8,8 @@
 
 
 	// TODOS
-	// # Enable waveform rendering
+	// # add settings fields
+	// # make waveform right-side-up
 
 	import { onMount } from 'svelte'; // Callback a function when the component is ready
 
@@ -16,6 +17,7 @@
 	let keyDown = false;
 	let recording;
     let mediaRecorder;
+	let canvas;
 
 	function csv(text){
 		let rows = text.split('\n');
@@ -23,6 +25,71 @@
 			rows[i] = rows[i].split('	');
 		}
 		return rows;
+	}
+
+
+	async function getAudioSamples(arrayBuffer){
+		const ac = new AudioContext();
+		const audioBuffer = await ac.decodeAudioData(arrayBuffer);
+		console.log(audioBuffer);
+
+		const audio = await audioBuffer.getChannelData(0);
+
+		// 1. aggregate the audio data points into segments (samples)
+		const sampleCount = 800;
+		const blockSize = Math.floor(audio.length / sampleCount);
+		const samples = [];
+		for (let i=0; i<sampleCount; i++){
+			let blockStart = blockSize * i;
+			let sum = 0;
+			for (let j=0; j<blockSize; j++){
+				sum = sum + Math.abs(audio[blockStart+j]);
+
+			}
+			samples.push(sum / blockSize);
+		}
+
+		console.log('Max sample', Math.max(...samples));
+		return samples;
+	}
+
+	function clearCanvas(){
+		// DONE: the canvas data isn't cleared between waveforms
+		// Data from previous takes is redrawn after clearing with clearRect.
+		// Let's just create a fresh canvas element for each take.
+		document.querySelector('#waveform canvas').remove();
+		const c = document.createElement('canvas');
+		c.height = 100;
+		c.width = 800;
+		document.querySelector('#waveform').appendChild(c);
+
+		canvas = c.getContext('2d');
+	}
+
+	function normalize(samples){
+		const multiplier = Math.pow(Math.max(...samples), -1)
+		console.log('normalize multiplier', multiplier);
+		return samples.map(n => n * multiplier);
+	}
+
+	function draw(audioSamples){
+		clearCanvas();
+		for (let i=0; i<audioSamples.length; i++){
+			canvas.moveTo(i, 0); 
+			canvas.lineTo(i, audioSamples[i]*100);
+			canvas.stroke();
+		}
+	}
+
+	async function waveform(arrayBuffer){
+		// Reference: https://css-tricks.com/making-an-audio-waveform-visualizer-with-vanilla-javascript/
+		
+		const audioSamples = await getAudioSamples(arrayBuffer);
+
+		const normalizedAudioSamples = normalize(audioSamples);
+
+		// 3. draw a vertical line for each segment representing the amplitude of the segment
+		draw(normalizedAudioSamples);
 	}
 
 
@@ -39,6 +106,10 @@
 			});
 
 			mediaRecorder.addEventListener('stop', function () {
+				new Blob(recordedChunks).arrayBuffer().then((arrayBuffer)=>{
+					waveform(arrayBuffer);
+				});
+
 				recording = URL.createObjectURL(new Blob(recordedChunks));
 
    				const player = new Audio(recording);
@@ -161,6 +232,10 @@
 		document.addEventListener('keyup', onKeyUp);
 	});
 </script>
+
+<div id='waveform' style="border: 10px solid black; width: 800px;">
+	<canvas  width="800" height="100" on:click={clearCanvas}></canvas>
+</div>
 
 <h1>Vajra Chopper</h1>
 <div>
