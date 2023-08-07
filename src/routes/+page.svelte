@@ -19,6 +19,8 @@
     let mediaRecorder;
 	let canvas;
 
+	let normalizeWaveform;
+
 	function csv(text){
 		let rows = text.split('\n');
 		for (let i = 0; i<rows.length; i++) {
@@ -86,10 +88,12 @@
 		
 		const audioSamples = await getAudioSamples(arrayBuffer);
 
-		const normalizedAudioSamples = normalize(audioSamples);
-
 		// 3. draw a vertical line for each segment representing the amplitude of the segment
-		draw(normalizedAudioSamples);
+		if (normalizeWaveform) {
+			draw(normalize(audioSamples));
+		} else {
+			draw(audioSamples);
+		}
 	}
 
 
@@ -246,6 +250,12 @@
 		<li>SPACE: Hold to record</li>
 		<li>D KEY: Download recorded word</li>
 	</ul>
+</div>
+
+<div>
+	<h2>Settings</h2>
+	<input type="checkbox" bind:checked={normalizeWaveform} id="normalizeWaveform">
+	<label for="normalizeWaveform">Normalize waveform</label>
 </div>
 
 {#if !wordsMatrix || !wordsMatrix.length}
